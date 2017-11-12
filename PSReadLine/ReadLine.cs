@@ -38,6 +38,7 @@ namespace Microsoft.PowerShell
 
         private EngineIntrinsics _engineIntrinsics;
         private Thread _readKeyThread;
+        private Thread _mouseInterceptorThread;
         private AutoResetEvent _readKeyWaitHandle;
         private AutoResetEvent _keyReadWaitHandle;
         internal ManualResetEvent _closingWaitHandle;
@@ -670,6 +671,9 @@ namespace Microsoft.PowerShell
 
             _singleton._readKeyThread = new Thread(_singleton.ReadKeyThreadProc) {IsBackground = true};
             _singleton._readKeyThread.Start();
+
+            _singleton._mouseInterceptorThread = new Thread(MouseInterceptor.MouseHookThreadProc) { IsBackground = true };
+            _singleton._mouseInterceptorThread.Start();
         }
 
         private static void Chord(ConsoleKeyInfo? key = null, object arg = null)
