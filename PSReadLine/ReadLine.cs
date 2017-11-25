@@ -666,13 +666,14 @@ namespace Microsoft.PowerShell
                 {
                     _singleton._closingWaitHandle.Set();
                     _singleton._readKeyThread.Join(); // may need to wait for history to be written
+                    _singleton._mouseInterceptorThread.Join(); // wait for the interceptor thread to cleanly unhook
                 };
             }
 
             _singleton._readKeyThread = new Thread(_singleton.ReadKeyThreadProc) {IsBackground = true};
             _singleton._readKeyThread.Start();
 
-            _singleton._mouseInterceptorThread = new Thread(MouseInterceptor.MouseHookThreadProc) { IsBackground = true };
+            _singleton._mouseInterceptorThread = new Thread(_singleton.MouseHookThreadProc) { IsBackground = true };
             _singleton._mouseInterceptorThread.Start();
         }
 

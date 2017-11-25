@@ -5,11 +5,11 @@ Copyright (c) Microsoft Corporation.  All rights reserved.
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
+using System.Threading;
 
 namespace Microsoft.PowerShell
 {
-    internal static class MouseInterceptor
+    public partial class PSConsoleReadLine
     {
 
         private const int WH_MOUSE_LL = 14;
@@ -87,7 +87,36 @@ namespace Microsoft.PowerShell
         private static HookProc hookProc = HookCallback;
         private static IntPtr ourHwnd;
 
-        public static void MouseHookThreadProc()
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSG
+        {
+            public IntPtr Hwnd;
+            public uint Message;
+            public IntPtr WParam;
+            public IntPtr LParam;
+            public uint Time;
+            public POINT Point;
+        }
+
+        const uint PM_NOREMOVE = 0;
+        const uint PM_REMOVE = 1;
+
+        const uint WM_QUIT = 0x0012;
+
+        [DllImport("user32.dll")]
+        private static extern bool PeekMessage(out MSG lpMsg, IntPtr hwnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMessage(out MSG lpMsg, IntPtr hwnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        [DllImport("user32.dll")]
+        private static extern bool TranslateMessage(ref MSG lpMsg);
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage(ref MSG lpMsg);
+
+
+        private void MouseHookThreadProc()
         {
             ourHwnd = Process.GetCurrentProcess().MainWindowHandle;
 
@@ -97,9 +126,23 @@ namespace Microsoft.PowerShell
                 hookId = SetWindowsHookEx(WH_MOUSE_LL, hookProc, GetModuleHandle(curModule.ModuleName), 0);
             }
 
-            // This is blocking an probably doesn't exit properly during shutdown i.e
-            // UnhookWindowsHookEx isn't called...
-            Application.Run();
+
+            // This needs to be improved to avoid being a busy-waiting loop
+            MSG msg;
+            while (true)
+            {
+                if (PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessage(ref msg);
+                }
+
+                // 2ms wait to reduce busy-waiting
+                if (_singleton._closingWaitHandle.WaitOne(2))
+                {
+                    break;
+                }
+            }
 
             UnhookWindowsHookEx(hookId);
         }
